@@ -52,10 +52,53 @@ def page_title():
         unsafe_allow_html=True
     )
 
+# upload file
+def uploaded_file():
+    fl = st.file_uploader("📁 Upload your CSV file.", type=["csv", "txt", "xlsx", "xls"])
+    if fl is not None:
+        filename = fl.name
+        df = pd.read_csv(filename, encoding="ISO-8859-1")
+        st.success(f"✅ {filename} uploaded successfully!!")
+        st.write("📄 Data Preview")
+        st.write(df.head())
+    else:
+        df = pd.read_csv("data/Superstore.csv", encoding="ISO-8859-1")
+
+    return df
+
+# read the data
+def read_data(df):
+    col1, col2 = st.columns((2))
+    df["Order Date"] = pd.to_datetime(df["Order Date"])
+    # Getting min and max date
+    start_date = pd.to_datetime(df["Order Date"]).min()
+    end_date = pd.to_datetime(df["Order Date"]).max()
+
+    with col1:
+        date1 = pd.to_datetime(st.date_input("Start Date", start_date))
+    with col2:
+        date2 = pd.to_datetime(st.date_input("End Date", end_date))
+
+    df = df[(df["Order Date"] >= date1) & (df["Order Date"] <= date2)].copy()
+
+    return df
+
+# Create Side Bar
+def create_sidebar(df):
+    st.sidebar.header("Select Your Filter:")
+    region = st.sidebar.multiselect("Pick your region", df["Region"].unique())
+
+    # Region filtering
+    if not region:
+        df2 = df.copy()
+    else:
+        df2 = df[df["Region"].isin(region)]
+
+    # State filtering
 
 def main():
     st.set_page_config(
-        page_title="VIZOLYTIC Application ",
+        page_title="Vizolytic – Turning Data Into Decisions",
         page_icon="assets/icon1.png",
         layout="wide",
         initial_sidebar_state="expanded"
@@ -63,6 +106,19 @@ def main():
 
     # Create the page title
     page_title()
+
+    # Uoload file
+    df = uploaded_file()
+
+    # Read the data
+    read_data(df)
+
+    # Create Side Bar
+    create_sidebar(df)
+
+    
+
+    
 
 if __name__== "__main__":
     main()
