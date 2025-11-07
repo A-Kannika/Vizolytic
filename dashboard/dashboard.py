@@ -66,23 +66,6 @@ def uploaded_file():
 
     return df
 
-# read the data
-def read_data(df):
-    col1, col2 = st.columns((2))
-    df["Order Date"] = pd.to_datetime(df["Order Date"])
-    # Getting min and max date
-    start_date = pd.to_datetime(df["Order Date"]).min()
-    end_date = pd.to_datetime(df["Order Date"]).max()
-
-    with col1:
-        date1 = pd.to_datetime(st.date_input("Start Date", start_date))
-    with col2:
-        date2 = pd.to_datetime(st.date_input("End Date", end_date))
-
-    df = df[(df["Order Date"] >= date1) & (df["Order Date"] <= date2)].copy()
-
-    return df
-
 # Create Side Bar
 def create_sidebar(df):
     st.sidebar.header("Select Your Filter:")
@@ -114,13 +97,60 @@ def create_sidebar(df):
     elif state and city:
         filtered_df = df3[df["State"].isin(state) & df3["City"].isin(city)]
     elif region and city:
-        filtered_df = df3[df["State"].isin(region) & df3["City"].isin(city)]
+        filtered_df = df3[df["Region"].isin(region) & df3["City"].isin(city)]
     elif region and state:
-        filtered_df = df3[df["State"].isin(region) & df3["City"].isin(state)]
+        filtered_df = df3[df["Region"].isin(region) & df3["State"].isin(state)]
     elif city:
         filtered_df = df3[df3["City"].isin(city)]
     else:
         filtered_df = df3[df3["Region"].isin(region) & df3["State"].isin(state) & df3["City"].isin(city)]
+
+    # filter Categories column
+    category_df = filtered_df.groupby(by=["Category"], as_index=False)["Sales"].sum()
+
+    return filtered_df, category_df
+
+# create bar chart for the category data
+def create_barchart(category_df):
+    st.subheader("Category Wise Sales")
+    fig = px.bar(category_df, x="Category", y="Sales", 
+                 text=[f"${x:,.2f}" for x in category_df["Sales"]],
+                 template="seaborn"
+                 )
+    fig.update_layout(height=400)
+    st.plotly_chart(fig, config={"responsive": True})
+
+# create pie chart for the region data
+def create_piechart(filtered_df):
+    st.subheader("Region Wise Sales")
+    fig = px.pie(filtered_df, values="Sales",names="Region", hole=0)
+    fig.update_traces(text=filtered_df["Region"], textposition="outside")
+    fig.update_layout(height=400)
+    st.plotly_chart(fig, config={"responsive": True})
+
+    
+# read the data
+def read_data(df):
+    # Create Side Bar to filler the data
+    filtered_df, category_df = create_sidebar(df)
+
+    col1, col2 = st.columns((2))
+    df["Order Date"] = pd.to_datetime(df["Order Date"])
+    # Getting min and max date
+    start_date = pd.to_datetime(df["Order Date"]).min()
+    end_date = pd.to_datetime(df["Order Date"]).max()
+
+    with col1:
+        date1 = pd.to_datetime(st.date_input("Start Date", start_date))
+        create_barchart(category_df)
+    with col2:
+        date2 = pd.to_datetime(st.date_input("End Date", end_date))
+        create_piechart(filtered_df)
+
+    df = df[(df["Order Date"] >= date1) & (df["Order Date"] <= date2)].copy()
+
+    return df
+
 
 
 def main():
@@ -139,13 +169,6 @@ def main():
 
     # Read the data
     read_data(df)
-
-    # Create Side Bar
-    create_sidebar(df)
-
-    
-
-    
 
 if __name__== "__main__":
     main()
