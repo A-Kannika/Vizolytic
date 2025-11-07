@@ -1,10 +1,10 @@
 import streamlit as st
 import plotly.express as px
 import pandas as pd
-import os
 import warnings
 import base64
-import matplotlib
+import plotly.figure_factory as ff
+
 warnings.filterwarnings('ignore')
 
 # create the page title
@@ -172,6 +172,28 @@ def time_series_view_data(line_chart):
         st.download_button("Download Data", data=csv, file_name="Timeseries.csv", mime="text/csv",
                                help="Click here to download the data as a csv file")
 
+# Create tree map based on Region, category, sub-categories
+def treemap_view(filtered_df):
+    st.subheader("hierarchical view of Sales using TreeMap")
+    fig = px.treemap(filtered_df, path=["Region", "Category", "Sub-Category"], values="Sales",
+                     hover_data=["Sales"], color="Sub-Category", 
+                     color_discrete_sequence=px.colors.qualitative.Plotly)
+    fig.update_layout(width=800, height=650)
+    st.plotly_chart(fig, use_container_width=True)
+
+# Create the chart for the segment wise sales
+def segmants_wise_data(filtered_df):
+    st.subheader("Segments Wise Sales")
+    fig = px.pie(filtered_df, values="Sales", names="Segment", template="plotly_dark")
+    fig.update_traces(text=filtered_df["Segment"], textposition="inside")
+    st.plotly_chart(fig, use_container_width=True)
+
+# Create the chart for the sales wise data
+def category_wise_data(filtered_df):
+    st.subheader("Category Wise Sales")
+    fig = px.pie(filtered_df, values="Sales", names="Category", template="gridon")
+    fig.update_traces(text=filtered_df["Category"], textposition="inside")
+    st.plotly_chart(fig, use_container_width=True)
 
 # Data visualization
 def viz_data(df):
@@ -198,6 +220,16 @@ def viz_data(df):
 
     # Time series analysis
     time_series_analysis(filtered_df)
+
+    # TreeMap based on Region, category, sub-categories
+    treemap_view(filtered_df)
+
+    chart1, chart2 = st.columns((2))
+    with chart1:
+        segmants_wise_data(filtered_df)
+    with chart2:
+        category_wise_data(filtered_df)
+
 
     return df
 
