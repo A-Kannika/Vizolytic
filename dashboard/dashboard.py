@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import warnings
 import base64
+import matplotlib
 warnings.filterwarnings('ignore')
 
 # create the page title
@@ -128,13 +129,29 @@ def create_piechart(filtered_df):
     fig.update_layout(height=400)
     st.plotly_chart(fig, config={"responsive": True})
 
+# Category view/download data
+def category_view_data(filtered_df, category_df):
+    cl1, cl2 = st.columns(2)
+    with cl1:
+        with st.expander("Category View Data"):
+            st.write(category_df.style.background_gradient(cmap="Blues"))
+            csv = category_df.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Data", data=csv, file_name="Category.csv", mime="text/csv",
+                               help="Click here to download the data as a csv file")
+    with cl2:
+        with st.expander("Region View Data"):
+            region = filtered_df.groupby(by="Region", as_index=False)["Sales"].sum()
+            st.write(region.style.background_gradient(cmap="Blues"))
+            csv = region.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Data", data=csv, file_name="Region.csv", mime="text/csv",
+                               help="Click here to download the data as a csv file")
     
 # read the data
-def read_data(df):
+def viz_data(df):
     # Create Side Bar to filler the data
     filtered_df, category_df = create_sidebar(df)
 
-    col1, col2 = st.columns((2))
+    col1, col2 = st.columns(2)
     df["Order Date"] = pd.to_datetime(df["Order Date"])
     # Getting min and max date
     start_date = pd.to_datetime(df["Order Date"]).min()
@@ -148,9 +165,11 @@ def read_data(df):
         create_piechart(filtered_df)
 
     df = df[(df["Order Date"] >= date1) & (df["Order Date"] <= date2)].copy()
+    
+    # Download the data available
+    category_view_data(filtered_df, category_df)
 
     return df
-
 
 
 def main():
@@ -167,8 +186,8 @@ def main():
     # Uoload file
     df = uploaded_file()
 
-    # Read the data
-    read_data(df)
+    # Data visualization
+    viz_data(df)
 
 if __name__== "__main__":
     main()
