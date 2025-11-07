@@ -146,7 +146,34 @@ def category_view_data(filtered_df, category_df):
             st.download_button("Download Data", data=csv, file_name="Region.csv", mime="text/csv",
                                help="Click here to download the data as a csv file")
     
-# read the data
+# Time series analysis
+def time_series_analysis(filtered_df):
+    filtered_df["month_year"] = filtered_df["Order Date"].dt.to_period("M")
+    st.subheader('Time Series Analysis')
+    line_chart = (filtered_df.groupby("month_year")["Sales"].sum().reset_index())
+    line_chart["month_year"] = line_chart["month_year"].dt.strftime("%Y - %b")
+    fig = px.line(
+        line_chart,
+        x="month_year",
+        y="Sales",
+        labels={"Sales": "Amount"},
+        height=500,
+        width=1000,
+        template="gridon"
+    )
+    st.plotly_chart(fig, config={"responsive": True})
+    time_series_view_data(line_chart)
+
+# Time series data download
+def time_series_view_data(line_chart):
+    with st.expander("View Data Time Series"):
+        st.write(line_chart.T.style.background_gradient(cmap="Blues"))
+        csv = line_chart.sort_values(by="month_year", ascending=True).to_csv(index=False).encode('utf-8')
+        st.download_button("Download Data", data=csv, file_name="Timeseries.csv", mime="text/csv",
+                               help="Click here to download the data as a csv file")
+
+
+# Data visualization
 def viz_data(df):
     # Create Side Bar to filler the data
     filtered_df, category_df = create_sidebar(df)
@@ -168,6 +195,9 @@ def viz_data(df):
     
     # Download the data available
     category_view_data(filtered_df, category_df)
+
+    # Time series analysis
+    time_series_analysis(filtered_df)
 
     return df
 
