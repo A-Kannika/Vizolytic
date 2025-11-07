@@ -147,14 +147,36 @@ def category_view_data(filtered_df, category_df):
                                help="Click here to download the data as a csv file")
     
 # Time series analysis
-def time_series_analysis(filtered_df):
+def time_series_analysis1(filtered_df):
     filtered_df["month_year"] = filtered_df["Order Date"].dt.to_period("M")
     st.subheader('Time Series Analysis')
     line_chart = (filtered_df.groupby("month_year")["Sales"].sum().reset_index())
-    line_chart["month_year"] = line_chart["month_year"].dt.strftime("%Y - %b")
+    line_chart["month_year_str"] = line_chart["month_year"].dt.strftime("%Y - %b")
     fig = px.line(
         line_chart,
-        x="month_year",
+        x="month_year_str",
+        y="Sales",
+        labels={"Sales": "Amount"},
+        height=500,
+        width=1000,
+        template="gridon"
+    )
+    st.plotly_chart(fig, config={"responsive": True})
+    time_series_view_data(line_chart)
+
+def time_series_analysis(filtered_df):
+    # Ensure Order Date is datetime
+    filtered_df["Order Date"] = pd.to_datetime(filtered_df["Order Date"], errors="coerce")
+
+    st.subheader('Time Series Analysis')
+
+    filtered_df["month_year"] = filtered_df["Order Date"].dt.to_period("M")
+    line_chart = filtered_df.groupby("month_year")["Sales"].sum().reset_index()
+    line_chart["month_year_str"] = line_chart["month_year"].dt.strftime("%Y - %b")
+
+    fig = px.line(
+        line_chart,
+        x="month_year_str",
         y="Sales",
         labels={"Sales": "Amount"},
         height=500,
@@ -167,8 +189,9 @@ def time_series_analysis(filtered_df):
 # Time series data download
 def time_series_view_data(line_chart):
     with st.expander("View Data Time Series"):
-        st.write(line_chart.T.style.background_gradient(cmap="Blues"))
-        csv = line_chart.sort_values(by="month_year", ascending=True).to_csv(index=False).encode('utf-8')
+        export_df = line_chart[["month_year", "Sales"]]
+        st.write(export_df.T.style.background_gradient(cmap="Blues"))
+        csv = export_df.sort_values(by="month_year", ascending=True).to_csv(index=False).encode('utf-8')
         st.download_button("Download Data", data=csv, file_name="Timeseries.csv", mime="text/csv",
                                help="Click here to download the data as a csv file")
 
@@ -194,6 +217,20 @@ def category_wise_data(filtered_df):
     fig = px.pie(filtered_df, values="Sales", names="Category", template="gridon")
     fig.update_traces(text=filtered_df["Category"], textposition="inside")
     st.plotly_chart(fig, use_container_width=True)
+
+# Figure factory
+def figure_factory_data(df, filtered_df):
+    st.subheader(":point_right: Month wise Sub-Category Sales Summary")
+    with st.expander("Summary Tables"):
+        df_sample = df[0:5][["Region", "State", "City", "Category", "Sales", "Profit", "Quantity"]]
+        fig = ff.create_table(df_sample, colorscale="tropic")
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("Month wise Sub-Category Table")
+        filtered_df["month"] = filtered_df["Order Date"].dt.month_name()
+        sub_category_year = pd.pivot_table(data=filtered_df, values="Sales", index=["Sub-Category"],
+                                           columns="month")
+        st.write(sub_category_year.style.background_gradient(cmap="Blues"))
 
 # Data visualization
 def viz_data(df):
@@ -230,9 +267,8 @@ def viz_data(df):
     with chart2:
         category_wise_data(filtered_df)
 
-
+    figure_factory_data(df, filtered_df)
     return df
-
 
 def main():
     st.set_page_config(
