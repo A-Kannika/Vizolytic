@@ -232,6 +232,30 @@ def figure_factory_data(df, filtered_df):
                                            columns="month")
         st.write(sub_category_year.style.background_gradient(cmap="Blues"))
 
+# Create Scatter plot
+def create_scatter_plot(filtered_df):
+    for col in ["Sales", "Profit", "Quantity"]:
+        filtered_df[col] = pd.to_numeric(filtered_df[col], errors="coerce")
+    filtered_df = filtered_df.dropna(subset=["Sales", "Profit", "Quantity"])
+
+    fig = px.scatter(
+        filtered_df,
+        x="Sales",
+        y="Profit",
+        size="Quantity",
+        title="Relationship between Sales and Profits using Scatter Plot"
+    )
+    
+    fig.update_layout(
+        title=dict(text="Relationship between Sales and Profits using Scatter Plot", font=dict(size=20)),
+        xaxis_title="Sales",
+        yaxis_title="Profit",
+        height=500,
+        width=900
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
 # Data visualization
 def viz_data(df):
     # Create Side Bar to filler the data
@@ -268,6 +292,7 @@ def viz_data(df):
         category_wise_data(filtered_df)
 
     figure_factory_data(df, filtered_df)
+    create_scatter_plot(filtered_df)
     return df
 
 def main():
