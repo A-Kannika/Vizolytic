@@ -4,9 +4,13 @@ import pandas as pd
 import warnings
 import base64
 import plotly.figure_factory as ff
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfgen import canvas
 import matplotlib.pyplot as plt
 import io
 
@@ -114,8 +118,6 @@ def create_sidebar(df):
     # filter Categories column
     category_df = filtered_df.groupby(by=["Category"], as_index=False)["Sales"].sum()
 
-    generate_analytic_report(filtered_df, category_df)
-
     return filtered_df, category_df
 
 # create bar chart for the category data
@@ -154,23 +156,6 @@ def category_view_data(filtered_df, category_df):
                                help="Click here to download the data as a csv file")
     
 # Time series analysis
-def time_series_analysis1(filtered_df):
-    filtered_df["month_year"] = filtered_df["Order Date"].dt.to_period("M")
-    st.subheader('Time Series Analysis')
-    line_chart = (filtered_df.groupby("month_year")["Sales"].sum().reset_index())
-    line_chart["month_year_str"] = line_chart["month_year"].dt.strftime("%Y - %b")
-    fig = px.line(
-        line_chart,
-        x="month_year_str",
-        y="Sales",
-        labels={"Sales": "Amount"},
-        height=500,
-        width=1000,
-        template="gridon"
-    )
-    st.plotly_chart(fig, config={"responsive": True})
-    time_series_view_data(line_chart)
-
 def time_series_analysis(filtered_df):
     # Ensure Order Date is datetime
     filtered_df["Order Date"] = pd.to_datetime(filtered_df["Order Date"], errors="coerce")
@@ -265,7 +250,7 @@ def create_scatter_plot(filtered_df):
 
 # View the data
 def view_data(filtered_df):
-    with st.expander("View Data"):
+    with st.expander("View All Data"):
         st.write(filtered_df.iloc[:500,1:20:2].style.background_gradient(cmap="Oranges"))
 
 # Showing the heat map
@@ -326,7 +311,38 @@ def heat_map(filtered_df):
 # Download original dataset
 def download_dataset(df):
     csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("Download Data", data = csv, file_name="Data.csv", mime="text/csv")
+    st.download_button("Download Data Set in CSV file", data = csv, file_name="Data.csv", mime="text/csv")
+
+# PDF report header
+def report_header(story, styles):
+    icon = Image("assets/icon1.png", width=50, height=50)
+    title = Paragraph("<b>Vizolytic – Sales Dashboard Report</b>", styles["Title"])
+
+    # Create a small table to align icon and title horizontally and tightly
+    table = Table(
+        [[icon, title]],
+        colWidths=[10, 400],  # Adjust width as needed
+        hAlign='CENTER'
+    )
+
+    # Add style to reduce space between icon and title
+    table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+
+    story.append(table)
+    story.append(Spacer(1, 10))
+
+def add_footer(c: canvas.Canvas, doc):
+    width, height = letter
+    footer_text = "Created by Vizolytic"
+    c.setFont("Helvetica-Oblique", 9)
+    c.setFillColor(colors.grey)
+    c.drawCentredString(width / 2.0, 15, footer_text)
 
 # generate the report and export as pdf
 def generate_analytic_report(filtered_df, category_df):
@@ -344,62 +360,188 @@ def generate_analytic_report(filtered_df, category_df):
         styles = getSampleStyleSheet()
         story = []
 
-        # --- Report Title ---
-        story.append(Paragraph("📊 Vizolytic - Sales Dashboard Report", styles["Title"]))
-        story.append(Spacer(1, 12))
+        # Report Title 
+        report_header(story, styles)
 
         # --- Summary Section ---
         total_sales = filtered_df["Sales"].sum()
-        avg_profit = filtered_df["Profit"].mean()
+        tolal_profit = filtered_df["Profit"].sum()
+        percent_profit = (tolal_profit/(total_sales-tolal_profit) * 100)
         total_orders = len(filtered_df)
 
         summary_text = f"""
         <b>Total Sales:</b> ${total_sales:,.2f}<br/>
-        <b>Average Profit:</b> ${avg_profit:,.2f}<br/>
+        <b>Total Profit:</b> ${tolal_profit:,.2f} ({percent_profit:,.2f}%)<br/>
         <b>Total Orders:</b> {total_orders}<br/>
         """
         story.append(Paragraph(summary_text, styles["BodyText"]))
-        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 10))
 
-        # --- Bar Chart: Category Sales ---
-        fig, ax = plt.subplots()
-        ax.bar(category_df["Category"], category_df["Sales"], color="teal")
-        ax.set_title("Category-wise Sales")
-        ax.set_ylabel("Sales")
-        ax.set_xlabel("Category")
-        plt.tight_layout()
-
-        img_buf = io.BytesIO()
-        plt.savefig(img_buf, format='png')
-        plt.close(fig)
-        img_buf.seek(0)
-        story.append(Image(img_buf, width=400, height=250))
-        story.append(Spacer(1, 12))
-
-        # --- Pie Chart: Region Sales ---
-        region_sales = filtered_df.groupby("Region")["Sales"].sum().reset_index()
-        fig, ax = plt.subplots()
-        ax.pie(region_sales["Sales"], labels=region_sales["Region"], autopct="%1.1f%%", startangle=90)
-        ax.set_title("Region-wise Sales")
-        plt.tight_layout()
-
-        img_buf2 = io.BytesIO()
-        plt.savefig(img_buf2, format='png')
-        plt.close(fig)
-        img_buf2.seek(0)
-        story.append(Image(img_buf2, width=400, height=250))
-        story.append(Spacer(1, 12))
-
-        # --- Table Summary ---
-        top_cities = filtered_df.groupby("City")["Sales"].sum().nlargest(5).reset_index()
-        top_cities_html = "<br/>".join(
-            [f"{row.City}: ${row.Sales:,.2f}" for _, row in top_cities.iterrows()]
+        # --- Plotly Bar Chart (same color & format as dashboard) ---
+        fig_bar = px.bar(
+            category_df,
+            x="Category",
+            y="Sales",
+            text=[f"${x:,.2f}" for x in category_df["Sales"]],
+            template="seaborn",
+            color="Category",
+            color_discrete_sequence=["#4c72b0"]
         )
-        story.append(Paragraph("<b>Top 5 Cities by Sales:</b><br/>" + top_cities_html, styles["BodyText"]))
-        story.append(Spacer(1, 12))
+        fig_bar.update_layout(
+            title="Category Wise Sales",
+            xaxis_title="Category",
+            yaxis_title="Sales",
+            height=400,
+            width=600,
+            font=dict(size=12),
+            showlegend=False
+        )
 
-        # Build the PDF
-        doc.build(story)
+        # Save Plotly bar chart to image buffer
+        bar_buf = io.BytesIO()
+        fig_bar.write_image(bar_buf, format="png")
+        bar_buf.seek(0)
+        story.append(Image(bar_buf, width=400, height=250))
+        story.append(Spacer(1, 10))
+
+        # --- Plotly Pie Chart (same color & format) ---
+        region_sales = filtered_df.groupby("Region")["Sales"].sum().reset_index()
+        # Define custom color map
+        region_colors = {
+            "West": "#0d63c7",    # Dark Blue
+            "East": "#73bdf1",    # Light Blue
+            "Central": "#f04747", # Red
+            "South": "#f7b6b2"    # Light Pink
+        }
+
+        # Create pie chart with color map
+        fig_pie = px.pie(
+            region_sales,
+            values="Sales",
+            names="Region",
+            hole=0,
+            color="Region",
+            color_discrete_map=region_colors,
+        )
+
+        fig_pie.update_traces(
+            textposition="outside",
+            textinfo="label+percent",
+            textfont_size=12
+        )
+
+        fig_pie.update_layout(
+            title="Region Wise Sales",
+            height=400,
+            width=600,
+            font=dict(size=12),
+            legend_title_text="Region"
+        )
+
+        # Save Plotly pie chart to image buffer
+        pie_buf = io.BytesIO()
+        fig_pie.write_image(pie_buf, format="png")
+        pie_buf.seek(0)
+        story.append(Image(pie_buf, width=380, height=250))
+        story.append(Spacer(1, 10))
+
+        # --- U.S. Sales Heatmap ---
+        state_sales = filtered_df.groupby("State", as_index=False)["Sales"].sum()
+
+        # Map full state names to abbreviations
+        state_sales["State_Abbrev"] = state_sales["State"].map(us_state_abbrev)
+
+        # Remove any states that couldn't be mapped
+        state_sales = state_sales.dropna(subset=["State_Abbrev"])
+
+        fig_map = px.choropleth(
+            state_sales,
+            locations="State_Abbrev",
+            locationmode="USA-states",
+            color="Sales",
+            hover_name="State",
+            hover_data={"Sales": True, "State_Abbrev": False},
+            color_continuous_scale="Blues",
+            range_color=(0, state_sales["Sales"].max()),
+            scope="usa",
+            labels={"Sales": "Total Sales"}
+        )
+
+        fig_map.update_layout(
+            template='plotly_white',
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(l=0, r=0, t=30, b=0),
+            height=500,
+            width=900,
+            title=dict(
+                text="State-wise Sales in the U.S.",
+                font=dict(size=20, color="#333"),
+                x=0.5  # center the title
+            )
+        )
+
+        # --- Save Choropleth Map to Image Buffer for PDF ---
+        map_buf = io.BytesIO()
+        fig_map.write_image(map_buf, format="png")
+        map_buf.seek(0)
+
+        # --- Add to PDF Story ---
+        story.append(Image(map_buf, width=500, height=300))
+        story.append(Spacer(1, 25))
+
+        # --- Top 5 States and Top 5 Cities Table ---
+        top_states = filtered_df.groupby("State")["Sales"].sum().nlargest(5).reset_index()
+        top_cities = filtered_df.groupby("City")["Sales"].sum().nlargest(5).reset_index()
+
+        # Create a centered style based on Heading3
+        centered_heading = ParagraphStyle(
+            name="CenteredHeading",
+            parent=styles["Heading3"],
+            alignment=TA_CENTER
+        )
+
+        # Table title (centered)
+        story.append(Paragraph("<b>Top 5 States and Top 5 Cities by Sales</b>", centered_heading))
+        story.append(Spacer(1, 5))
+
+        # Prepare table data with headers
+        table_data = [["Top 5 States", "Sales", "Top 5 Cities", "Sales"]]
+
+        # Fill table rows (use zip_longest to handle uneven lengths)
+        from itertools import zip_longest
+        for state_row, city_row in zip_longest(top_states.itertuples(), top_cities.itertuples(), fillvalue=None):
+            state_name = state_row.State if state_row else ""
+            state_sales = f"${state_row.Sales:,.2f}" if state_row else ""
+            city_name = city_row.City if city_row else ""
+            city_sales = f"${city_row.Sales:,.2f}" if city_row else ""
+            table_data.append([state_name, state_sales, city_name, city_sales])
+
+        # Create ReportLab Table
+        tbl = Table(table_data, colWidths=[100, 80, 100, 80])
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.grey),       # Header background
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),  # Header text color
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 8),
+            
+            # Alternate column colors: State columns beige, City columns light blue
+            ('BACKGROUND', (0,1), (1,-1), colors.beige),
+            ('BACKGROUND', (2,1), (3,-1), colors.lightblue),
+            
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ]))
+
+        story.append(tbl)
+        story.append(Spacer(1, 10))
+
+        # --- Build PDF ---
+        doc.build(
+            story,
+            onFirstPage=add_footer,
+            onLaterPages=add_footer
+        )
         buffer.seek(0)
 
         # Download button
@@ -447,10 +589,10 @@ def viz_data(df):
 
     figure_factory_data(df, filtered_df)
     create_scatter_plot(filtered_df)
-    view_data(filtered_df)
     heat_map(filtered_df)
+    generate_analytic_report(filtered_df, category_df)
+    view_data(filtered_df)
     download_dataset(df)
-    generate_analytic_report()
     return df
 
 def main():
