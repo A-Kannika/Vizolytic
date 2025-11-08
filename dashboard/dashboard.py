@@ -256,6 +256,71 @@ def create_scatter_plot(filtered_df):
     
     st.plotly_chart(fig, use_container_width=True)
 
+# View the data
+def view_data(filtered_df):
+    with st.expander("View Data"):
+        st.write(filtered_df.iloc[:500,1:20:2].style.background_gradient(cmap="Oranges"))
+
+# Showing the heat map
+# Dictionary mapping full state names to abbreviations
+us_state_abbrev = {
+    'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+    'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+    'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+    'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+    'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+    'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+    'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+    'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+    'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+    'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+    'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+    'Wisconsin': 'WI', 'Wyoming': 'WY'
+}
+
+def heat_map(filtered_df):
+    st.subheader("Sales in the U.S. by State")
+
+    # Aggregate sales by state
+    state_sales = filtered_df.groupby("State", as_index=False)["Sales"].sum()
+
+    # Map full state names to abbreviations
+    state_sales["State_Abbrev"] = state_sales["State"].map(us_state_abbrev)
+
+    # Remove any states that couldn't be mapped
+    state_sales = state_sales.dropna(subset=["State_Abbrev"])
+
+    # Create choropleth
+    fig = px.choropleth(
+        state_sales,
+        locations="State_Abbrev",
+        locationmode="USA-states",
+        color="Sales",
+        hover_name="State",
+        hover_data={"Sales": True, "State_Abbrev": False},  # show state name and sales
+        color_continuous_scale="Blues",
+        range_color=(0, state_sales["Sales"].max()),
+        scope="usa",
+        labels={"Sales": "Total Sales"}
+    )
+
+    fig.update_layout(
+        template='plotly_white',
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=500,
+        title=dict(text="State-wise Sales in the U.S.", font=dict(size=20))
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# Download original dataset
+def download_dataset(df):
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button("Download Data", data = csv, file_name="Data.csv", mime="text/csv")
+
 # Data visualization
 def viz_data(df):
     # Create Side Bar to filler the data
@@ -293,6 +358,9 @@ def viz_data(df):
 
     figure_factory_data(df, filtered_df)
     create_scatter_plot(filtered_df)
+    view_data(filtered_df)
+    heat_map(filtered_df)
+    download_dataset(df)
     return df
 
 def main():
