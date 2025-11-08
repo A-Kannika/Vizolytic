@@ -4,6 +4,11 @@ import pandas as pd
 import warnings
 import base64
 import plotly.figure_factory as ff
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+import matplotlib.pyplot as plt
+import io
 
 warnings.filterwarnings('ignore')
 
@@ -108,6 +113,8 @@ def create_sidebar(df):
 
     # filter Categories column
     category_df = filtered_df.groupby(by=["Category"], as_index=False)["Sales"].sum()
+
+    generate_analytic_report(filtered_df, category_df)
 
     return filtered_df, category_df
 
@@ -321,6 +328,88 @@ def download_dataset(df):
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button("Download Data", data = csv, file_name="Data.csv", mime="text/csv")
 
+# generate the report and export as pdf
+def generate_analytic_report(filtered_df, category_df):
+    # Create the download button in sidebar
+    st.sidebar.subheader("📄 Export Report")
+
+    if st.sidebar.button("Generate PDF Report"):
+        if filtered_df is None or category_df is None:
+            st.warning("⚠️ Please apply filters before generating the report.")
+            return
+
+        # Create a BytesIO buffer for the PDF
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+
+        # --- Report Title ---
+        story.append(Paragraph("📊 Vizolytic - Sales Dashboard Report", styles["Title"]))
+        story.append(Spacer(1, 12))
+
+        # --- Summary Section ---
+        total_sales = filtered_df["Sales"].sum()
+        avg_profit = filtered_df["Profit"].mean()
+        total_orders = len(filtered_df)
+
+        summary_text = f"""
+        <b>Total Sales:</b> ${total_sales:,.2f}<br/>
+        <b>Average Profit:</b> ${avg_profit:,.2f}<br/>
+        <b>Total Orders:</b> {total_orders}<br/>
+        """
+        story.append(Paragraph(summary_text, styles["BodyText"]))
+        story.append(Spacer(1, 12))
+
+        # --- Bar Chart: Category Sales ---
+        fig, ax = plt.subplots()
+        ax.bar(category_df["Category"], category_df["Sales"], color="teal")
+        ax.set_title("Category-wise Sales")
+        ax.set_ylabel("Sales")
+        ax.set_xlabel("Category")
+        plt.tight_layout()
+
+        img_buf = io.BytesIO()
+        plt.savefig(img_buf, format='png')
+        plt.close(fig)
+        img_buf.seek(0)
+        story.append(Image(img_buf, width=400, height=250))
+        story.append(Spacer(1, 12))
+
+        # --- Pie Chart: Region Sales ---
+        region_sales = filtered_df.groupby("Region")["Sales"].sum().reset_index()
+        fig, ax = plt.subplots()
+        ax.pie(region_sales["Sales"], labels=region_sales["Region"], autopct="%1.1f%%", startangle=90)
+        ax.set_title("Region-wise Sales")
+        plt.tight_layout()
+
+        img_buf2 = io.BytesIO()
+        plt.savefig(img_buf2, format='png')
+        plt.close(fig)
+        img_buf2.seek(0)
+        story.append(Image(img_buf2, width=400, height=250))
+        story.append(Spacer(1, 12))
+
+        # --- Table Summary ---
+        top_cities = filtered_df.groupby("City")["Sales"].sum().nlargest(5).reset_index()
+        top_cities_html = "<br/>".join(
+            [f"{row.City}: ${row.Sales:,.2f}" for _, row in top_cities.iterrows()]
+        )
+        story.append(Paragraph("<b>Top 5 Cities by Sales:</b><br/>" + top_cities_html, styles["BodyText"]))
+        story.append(Spacer(1, 12))
+
+        # Build the PDF
+        doc.build(story)
+        buffer.seek(0)
+
+        # Download button
+        st.sidebar.download_button(
+            label="📥 Download PDF",
+            data=buffer,
+            file_name="Vizolytic_Report.pdf",
+            mime="application/pdf"
+        )
+
 # Data visualization
 def viz_data(df):
     # Create Side Bar to filler the data
@@ -361,6 +450,7 @@ def viz_data(df):
     view_data(filtered_df)
     heat_map(filtered_df)
     download_dataset(df)
+    generate_analytic_report()
     return df
 
 def main():
